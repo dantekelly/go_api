@@ -4,11 +4,12 @@ on: [push]
 jobs:
   build:
     runs-on: ubuntu-latest
+    container: golang:1.22
 
     steps:
       - uses: actions/checkout@v4
       - name: Setup Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v5
         with:
           go-version: '1.22.x'
       - name: Install dependencies

@@ -54,5 +54,23 @@ func main() {
 		w.Write(jsonString)
 	})
 
+	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
+		username := r.URL.Query().Get("username")
+		user, ok := db.Users[username]
+		if !ok {
+			http.Error(w, "user not found", http.StatusNotFound)
+			return
+		}
+
+		jsonString, err := json.Marshal(user)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonString)
+	})
+
 	server.ListenAndServe()
 }

@@ -7,6 +7,7 @@ import (
 	"log"
 	"math/rand"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 )
 
@@ -43,6 +44,8 @@ func TestGetUsers(t *testing.T) {
 		fmt.Printf("%+v", users)
 	})
 }
+
+// 1. 138628 ns/op - 129077 ns/op - 127250 ns/op
 
 func BenchmarkGetUser(b *testing.B) {
 	for i := 0; i < b.N; i++ {
@@ -104,7 +107,6 @@ func TestGetUser(t *testing.T) {
 			t.Errorf("expected username to be user1, got %s", user.Username)
 		}
 	})
-
 	t.Run("responds 404 for bad query", func(t *testing.T) {
 		res, err := http.Get("http://localhost:9000/user?username=baduser")
 		if err != nil {
@@ -113,6 +115,36 @@ func TestGetUser(t *testing.T) {
 
 		if res.StatusCode != http.StatusNotFound {
 			t.Errorf("expected status code to be 404, got %d", res.StatusCode)
+		}
+	})
+	t.Run("common user is cached", func(t *testing.T) {
+		attempts := 1000
+		s := NewServer()
+		ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
+		defer ts.Close()
+
+		for i := 0; i < attempts; i++ {
+			id := i%100 + 1
+			userId := fmt.Sprintf("user%d", id)
+			resp, err := http.Get(fmt.Sprintf("%s/user?username=%s", ts.URL, userId))
+			if err != nil {
+				log.Fatal(err)
+			}
+
+			if resp.Header.Get("Content-Type") != "application/json" {
+				t.Errorf("expected content type to be application/json, got %s", resp.Header.Get("Content-Type"))
+			}
+
+			_, ioerr := io.ReadAll(resp.Body)
+			resp.Body.Close()
+
+			if ioerr != nil {
+				log.Fatal(err)
+			}
+		}
+
+		if s.db.Attempts != 100 {
+			t.Errorf("expected 100 db attempt, got %d", s.db.Attempts)
 		}
 	})
 }

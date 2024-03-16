@@ -1,9 +1,20 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 )
+
+type User struct {
+	Username   string
+	LastActive string
+}
+
+type Database struct {
+	Users map[string]User
+}
 
 func NewServer() *http.Server {
 	return &http.Server{
@@ -11,13 +22,36 @@ func NewServer() *http.Server {
 	}
 }
 
+func initalDatabase() *Database {
+	users := map[string]User{}
+
+	for i := 0; i < 100; i++ {
+		users[fmt.Sprintf("user%d", i)] = User{
+			Username:   fmt.Sprintf("user%d", i),
+			LastActive: time.Now().Format(time.RFC3339),
+		}
+	}
+
+	return &Database{
+		Users: users,
+	}
+}
+
 func main() {
 	server := NewServer()
+	db := initalDatabase()
 
 	fmt.Printf("Server listening on %s\n", server.Addr)
 
 	http.HandleFunc("/users", func(w http.ResponseWriter, r *http.Request) {
-		w.Write([]byte("Hello, World!"))
+		jsonString, err := json.Marshal(db.Users)
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(jsonString)
 	})
 
 	server.ListenAndServe()

@@ -25,7 +25,7 @@ func NewServer() *http.Server {
 func initialDatabase() *Database {
 	users := map[string]User{}
 
-	for i := 0; i < 100; i++ {
+	for i := 1; i < 101; i++ {
 		users[fmt.Sprintf("user%d", i)] = User{
 			Username:   fmt.Sprintf("user%d", i),
 			LastActive: time.Now().Format(time.RFC3339),

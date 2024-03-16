@@ -22,7 +22,7 @@ func NewServer() *http.Server {
 	}
 }
 
-func initalDatabase() *Database {
+func initialDatabase() *Database {
 	users := map[string]User{}
 
 	for i := 0; i < 100; i++ {
@@ -39,7 +39,7 @@ func initalDatabase() *Database {
 
 func main() {
 	server := NewServer()
-	db := initalDatabase()
+	db := initialDatabase()
 
 	fmt.Printf("Server listening on %s\n", server.Addr)
 
@@ -53,7 +53,6 @@ func main() {
 		w.Header().Set("Content-Type", "application/json")
 		w.Write(jsonString)
 	})
-
 	http.HandleFunc("/user", func(w http.ResponseWriter, r *http.Request) {
 		username := r.URL.Query().Get("username")
 		user, ok := db.Users[username]

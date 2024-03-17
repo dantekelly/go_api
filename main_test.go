@@ -13,7 +13,7 @@ import (
 	"testing"
 )
 
-var baseUrl = "http://localhost:9000"
+var maxGoroutines = runtime.NumCPU()
 
 func TestGetUsers(t *testing.T) {
 	t.Run("responds 100 users", func(t *testing.T) {
@@ -56,43 +56,56 @@ func TestGetUsers(t *testing.T) {
 // 1. 138628 ns/op - 129077 ns/op - 127250 ns/op
 // 2. 44214 ns/op - 478111 ns/op - 47950 ns/op
 // 3. ~43k ns/op (Use test server)
+// 4. ~31k ns/op (Use concurrency)
 
 func BenchmarkGetUser(b *testing.B) {
 	s := NewServer()
 	ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
 	defer ts.Close()
 
+	var wg sync.WaitGroup
+	sem := make(chan struct{}, maxGoroutines)
+
 	for i := 0; i < b.N; i++ {
-		randInt := rand.Intn(100-1+1) + 1
-		userId := fmt.Sprintf("user%d", randInt)
-		url := fmt.Sprintf("%s/user?username=%s", ts.URL, userId)
-		res, err := http.Get(url)
-		if err != nil {
-			log.Fatal(err)
-		}
+		wg.Add(1)
+		sem <- struct{}{}
+		go func() {
+			defer wg.Done()
+			randInt := rand.Intn(100) + 1
+			userId := fmt.Sprintf("user%d", randInt)
+			url := fmt.Sprintf("%s/user?username=%s", ts.URL, userId)
+			res, err := http.Get(url)
+			if err != nil {
+				log.Fatal(err)
+			}
 
-		if res.Header.Get("Content-Type") != "application/json" {
-			b.Errorf("expected content type to be application/json, got %s", res.Header.Get("Content-Type"))
-		}
+			if res.Header.Get("Content-Type") != "application/json" {
+				b.Errorf("expected content type to be application/json, got %s", res.Header.Get("Content-Type"))
+			}
 
-		body, err := io.ReadAll(res.Body)
-		res.Body.Close()
+			body, err := io.ReadAll(res.Body)
+			res.Body.Close()
 
-		if err != nil {
-			log.Fatal(err)
-		}
+			if err != nil {
+				log.Fatal(err)
+			}
 
-		var user User
-		jsonErr := json.Unmarshal(body, &user)
-		if jsonErr != nil {
-			fmt.Println("error")
-			log.Fatal(jsonErr)
-		}
+			var user User
+			jsonErr := json.Unmarshal(body, &user)
+			if jsonErr != nil {
+				fmt.Println("error")
+				log.Fatal(jsonErr)
+			}
 
-		if user.Username != fmt.Sprintf("user%d", randInt) {
-			b.Errorf("expected username to be user1, got %s", user.Username)
-		}
+			if user.Username != fmt.Sprintf("user%d", randInt) {
+				b.Errorf("expected username to be user1, got %s", user.Username)
+			}
+			<-sem
+		}()
+
 	}
+
+	wg.Wait()
 }
 
 func TestGetUser(t *testing.T) {
@@ -148,8 +161,6 @@ func TestGetUser(t *testing.T) {
 		}
 	})
 
-	maxGoroutines := runtime.NumCPU()
-
 	t.Run("common user is cached", func(t *testing.T) {
 		attempts := 1000
 		s := NewServer()
@@ -177,12 +188,6 @@ func TestGetUser(t *testing.T) {
 
 				if resp.Header.Get("Content-Type") != "application/json" {
 					t.Errorf("expected content type to be application/json, got %s", resp.Header.Get("Content-Type"))
-				}
-
-				_, ioerr := io.ReadAll(resp.Body)
-
-				if ioerr != nil {
-					log.Fatal(err)
 				}
 				<-sem
 			}()

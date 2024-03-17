@@ -72,14 +72,14 @@ func (s *Server) tryCache(username string) (*User, error) {
 }
 
 func (s *Server) handleGetUsers(w http.ResponseWriter, r *http.Request) {
-	jsonString, err := json.Marshal(s.db.Users)
+	j, err := json.Marshal(s.db.Users)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Write(jsonString)
+	w.Write(j)
 }
 func (s *Server) handleGetUser(w http.ResponseWriter, r *http.Request) {
 	username := r.URL.Query().Get("username")

@@ -17,7 +17,13 @@ var baseUrl = "http://localhost:9000"
 
 func TestGetUsers(t *testing.T) {
 	t.Run("responds 100 users", func(t *testing.T) {
-		res, err := http.Get(fmt.Sprintf("%s/users", baseUrl))
+		s := NewServer()
+		ts := httptest.NewServer(http.HandlerFunc(s.handleGetUsers))
+		defer ts.Close()
+
+		url := fmt.Sprintf("%s/users", ts.URL)
+
+		res, err := http.Get(url)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -48,6 +54,7 @@ func TestGetUsers(t *testing.T) {
 }
 
 // 1. 138628 ns/op - 129077 ns/op - 127250 ns/op
+// 2. 44214 ns/op - 478111 ns/op - 47950 ns/op
 
 func BenchmarkGetUser(b *testing.B) {
 	for i := 0; i < b.N; i++ {
@@ -83,7 +90,14 @@ func BenchmarkGetUser(b *testing.B) {
 
 func TestGetUser(t *testing.T) {
 	t.Run("responds 1 user for good user", func(t *testing.T) {
-		res, err := http.Get("http://localhost:9000/user?username=user1")
+		s := NewServer()
+		ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
+		defer ts.Close()
+
+		userId := "user1"
+		url := fmt.Sprintf("%s/user?username=%s", ts.URL, userId)
+
+		res, err := http.Get(url)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -110,7 +124,14 @@ func TestGetUser(t *testing.T) {
 		}
 	})
 	t.Run("responds 404 for bad query", func(t *testing.T) {
-		res, err := http.Get("http://localhost:9000/user?username=baduser")
+		s := NewServer()
+		ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
+		defer ts.Close()
+
+		userId := "baduser"
+		url := fmt.Sprintf("%s/user?username=%s", ts.URL, userId)
+
+		res, err := http.Get(url)
 		if err != nil {
 			log.Fatal(err)
 		}

@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"runtime"
 	"sync"
 	"testing"
 )
@@ -118,18 +119,21 @@ func TestGetUser(t *testing.T) {
 			t.Errorf("expected status code to be 404, got %d", res.StatusCode)
 		}
 	})
+
+	maxGoroutines := runtime.NumCPU()
+
 	t.Run("common user is cached", func(t *testing.T) {
-		// Speed without concurrency = 0.05s
-		// Speed with concurrency = 0.18s
 		attempts := 1000
 		s := NewServer()
 		ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
 		defer ts.Close()
 
 		var wg sync.WaitGroup
+		sem := make(chan struct{}, maxGoroutines)
 
 		for i := 0; i < attempts; i++ {
 			wg.Add(1)
+			sem <- struct{}{}
 			go func() {
 				defer wg.Done()
 
@@ -152,6 +156,7 @@ func TestGetUser(t *testing.T) {
 				if ioerr != nil {
 					log.Fatal(err)
 				}
+				<-sem
 			}()
 		}
 

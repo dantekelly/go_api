@@ -8,6 +8,7 @@ import (
 	"math/rand"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 )
 
@@ -118,33 +119,49 @@ func TestGetUser(t *testing.T) {
 		}
 	})
 	t.Run("common user is cached", func(t *testing.T) {
+		// Speed without concurrency = 0.05s
+		// Speed with concurrency = 0.18s
 		attempts := 1000
 		s := NewServer()
 		ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
 		defer ts.Close()
 
+		var wg sync.WaitGroup
+
 		for i := 0; i < attempts; i++ {
-			id := i%100 + 1
-			userId := fmt.Sprintf("user%d", id)
-			resp, err := http.Get(fmt.Sprintf("%s/user?username=%s", ts.URL, userId))
-			if err != nil {
-				log.Fatal(err)
-			}
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
 
-			if resp.Header.Get("Content-Type") != "application/json" {
-				t.Errorf("expected content type to be application/json, got %s", resp.Header.Get("Content-Type"))
-			}
+				id := i%100 + 1
+				userId := fmt.Sprintf("user%d", id)
+				url := fmt.Sprintf("%s/user?username=%s", ts.URL, userId)
 
-			_, ioerr := io.ReadAll(resp.Body)
-			resp.Body.Close()
+				resp, err := http.Get(url)
+				if err != nil {
+					t.Error(err)
+				}
+				defer resp.Body.Close()
 
-			if ioerr != nil {
-				log.Fatal(err)
-			}
+				if resp.Header.Get("Content-Type") != "application/json" {
+					t.Errorf("expected content type to be application/json, got %s", resp.Header.Get("Content-Type"))
+				}
+
+				_, ioerr := io.ReadAll(resp.Body)
+
+				if ioerr != nil {
+					log.Fatal(err)
+				}
+			}()
 		}
+
+		wg.Wait()
 
 		if s.db.Attempts != 100 {
 			t.Errorf("expected 100 db attempt, got %d", s.db.Attempts)
+		}
+		if s.cache.Attempts != 1000 {
+			t.Errorf("expected 1000 cache attempt, got %d", s.cache.Attempts)
 		}
 	})
 }

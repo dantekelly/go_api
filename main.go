@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -23,6 +24,7 @@ type Database struct {
 }
 
 type Server struct {
+	mu    sync.Mutex
 	db    *Database
 	cache *Cache
 	serve *http.Server
@@ -48,8 +50,12 @@ func NewServer() *Server {
 }
 
 func (s *Server) tryCache(username string) (*User, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
 	user, ok := s.cache.Users[username]
 	s.cache.Attempts++
+
 	if !ok {
 		dbUser, dbOk := s.db.Users[username]
 		s.db.Attempts++

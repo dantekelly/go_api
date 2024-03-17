@@ -55,11 +55,18 @@ func TestGetUsers(t *testing.T) {
 
 // 1. 138628 ns/op - 129077 ns/op - 127250 ns/op
 // 2. 44214 ns/op - 478111 ns/op - 47950 ns/op
+// 3. ~43k ns/op (Use test server)
 
 func BenchmarkGetUser(b *testing.B) {
+	s := NewServer()
+	ts := httptest.NewServer(http.HandlerFunc(s.handleGetUser))
+	defer ts.Close()
+
 	for i := 0; i < b.N; i++ {
 		randInt := rand.Intn(100-1+1) + 1
-		res, err := http.Get(fmt.Sprintf("%s/user?username=user%d", baseUrl, randInt))
+		userId := fmt.Sprintf("user%d", randInt)
+		url := fmt.Sprintf("%s/user?username=%s", ts.URL, userId)
+		res, err := http.Get(url)
 		if err != nil {
 			log.Fatal(err)
 		}
